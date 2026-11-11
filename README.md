@@ -1,16 +1,16 @@
 # gomath
 
-Small Go programs for computing difficult or obscure mathematics problems.
+A Go library for computing difficult or obscure mathematics problems.
 
-| Program | What it does |
+| Package | What it does |
 | --- | --- |
-| [BBP](BBP) | Prints hexadecimal digits of pi starting at any position, without computing the digits before it |
-| [ProthPrimes](ProthPrimes) | Finds the smallest Proth prime `k*2^n + 1` for a given odd `k` |
+| [`bbp`](bbp) | Hexadecimal digits of pi starting at any position, without computing the digits before it |
+| [`proth`](proth) | Proth numbers and Proth primes `k*2^n + 1`, with a deterministic primality test |
 
 Requires Go 1.21 or newer. There are no dependencies outside the standard library.
 
 ```bash
-go test ./...
+go get github.com/tyler-lloyd/gomath
 ```
 
 ## Bailey-Borwein-Plouffe algorithm
@@ -43,25 +43,28 @@ integer parts fall away through unsigned overflow and there is no
 floating-point rounding. Each term is truncated by less than `2^-64`, which
 bounds the total error and therefore the number of digits that can be trusted
 at a given position: 13 at position 0, 9 at position one million, 6 at the
-maximum position of 536,870,911. The program refuses to print more than that.
+maximum position of 536,870,911. `PiHexDigits` refuses to return more than that.
 
 ### Usage
 
-```
-BBP [-digits n] [position]
+```go
+import "github.com/tyler-lloyd/gomath/bbp"
+
+// pi = 3.243F6A88... in hexadecimal.
+digits, err := bbp.PiHexDigits(0, 8) // "243F6A88"
+
+// Skip the first million digits and compute the next eight directly.
+digits, err = bbp.PiHexDigits(1000000, 8) // "6C65E52C"
 ```
 
-`position` is the number of hex digits to skip after the point (default
-1,000,000), so `0` gives the very first digits of `pi = 3.243F6A88...`
+| Function | Purpose |
+| --- | --- |
+| `PiHexDigits(position, count)` | `count` hex digits of pi, starting with the digit at `position+1` after the point |
+| `MaxDigits(position)` | How many digits can be guaranteed at `position` |
+| `MaxPosition` | The largest supported position, 536,870,911 |
 
-```
-$ go run ./BBP 0
-Hex digits of pi starting at position 1: 243F6A88
-$ go run ./BBP
-Hex digits of pi starting at position 1000001: 6C65E52C
-$ go run ./BBP -digits 13 0
-Hex digits of pi starting at position 1: 243F6A8885A30
-```
+`PiHexDigits` returns an error if the position is past `MaxPosition` or if
+more digits are requested than `MaxDigits` allows.
 
 ## Proth primes
 
@@ -79,37 +82,45 @@ a^((N-1)/2) = -1  (mod N)
 ```
 
 If `N` is prime, the congruence holds exactly when `a` is a quadratic
-non-residue mod `N` (Euler's criterion). So the program picks the smallest `a`
+non-residue mod `N` (Euler's criterion). So `IsPrime` picks the smallest `a`
 whose Jacobi symbol `(a/N)` is `-1` and performs one modular exponentiation.
 The result is a proof of primality or compositeness, not a probabilistic
 answer. Several of the largest known primes are Proth primes found this way.
 
-For a given odd `k`, the program tries each `n` from the smallest allowed value
-up to a limit (1000 by default) and reports the first Proth prime.
-
-Some `k` never produce one. These are the **Sierpinski numbers**; the smallest
-known is 78557, for which `78557*2^n + 1` is always divisible by one of
-3, 5, 7, 13, 19, 37 or 73.
+Some `k` never produce a Proth prime. These are the **Sierpinski numbers**; the
+smallest known is 78557, for which `78557*2^n + 1` is always divisible by one
+of 3, 5, 7, 13, 19, 37 or 73.
 
 ### Usage
 
-```
-ProthPrimes [-max n] k
+```go
+import "github.com/tyler-lloyd/gomath/proth"
+
+// Smallest Proth prime 99*2^n + 1 with n <= 1000.
+n, prime, ok := proth.FindPrime(99, 1000) // 10, 101377, true
+
+proth.IsPrime(big.NewInt(113)) // true:  7*2^4 + 1
+proth.IsPrime(big.NewInt(25))  // false: a Proth number, but composite
+proth.IsPrime(big.NewInt(7))   // false: prime, but not a Proth number
 ```
 
-```
-$ go run ./ProthPrimes 99
-Proth prime has been found!
-99*2^10 + 1 = 101377
-$ go run ./ProthPrimes 47
-Proth prime has been found!
-47*2^583 + 1 = 1487939695262196876907983166454197495251350196192890428923003345454869706240895712896623468784438158657419591298913094265537812046389415279164757669092989298186306341246574002177
-$ go run ./ProthPrimes 78557
-No Proth prime 78557*2^n + 1 found for 17 <= n <= 1000.
-```
+| Function | Purpose |
+| --- | --- |
+| `FindPrime(k, maxExponent)` | Smallest `n <= maxExponent` for which `k*2^n + 1` is a Proth prime |
+| `IsPrime(p)` | Whether `p` is a Proth prime, proved by Proth's theorem |
+| `IsNumber(p)` | Whether `p` is a Proth number |
+| `Number(k, n)` | `k*2^n + 1` as a `*big.Int` |
+| `MinExponent(k)` | Smallest `n` with `2^n > k` |
 
-The exit status is 0 when a prime is found, 1 when none is found within the
-limit, and 2 for invalid input.
+`FindPrime` reports `ok == false` when no prime exists in the range or when
+`k` is even. Because the search needs arbitrary precision, primes such as
+`47*2^583 + 1` (177 digits) are found correctly.
+
+## Testing
+
+```bash
+go test ./...
+```
 
 ## References
 

@@ -1,4 +1,4 @@
-package main
+package bbp
 
 import (
 	"math/big"
@@ -44,7 +44,7 @@ func TestPiHexDigitsDeepPositions(t *testing.T) {
 }
 
 func TestPiHexDigitsRejectsBadInput(t *testing.T) {
-	if _, err := PiHexDigits(maxPosition+1, 4); err == nil {
+	if _, err := PiHexDigits(MaxPosition+1, 4); err == nil {
 		t.Error("expected an error for a position past the maximum")
 	}
 	if _, err := PiHexDigits(0, 0); err == nil {
@@ -64,5 +64,11 @@ func TestPowMod16(t *testing.T) {
 				t.Errorf("powMod16(%d, %d) = %d, want %d", exp, m, got, want)
 			}
 		}
+	}
+}
+
+func TestMaxDigitsPastMaxPosition(t *testing.T) {
+	if got := MaxDigits(MaxPosition + 1); got != 0 {
+		t.Errorf("MaxDigits(MaxPosition+1) = %d, want 0", got)
 	}
 }

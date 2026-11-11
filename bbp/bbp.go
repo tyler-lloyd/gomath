@@ -1,75 +1,35 @@
-// Command BBP prints hexadecimal digits of pi starting at an arbitrary
+// Package bbp computes hexadecimal digits of pi starting at an arbitrary
 // position, without computing any of the digits before it, using the
 // Bailey-Borwein-Plouffe digit-extraction algorithm.
-package main
+package bbp
 
 import (
-	"flag"
 	"fmt"
 	"math/bits"
-	"os"
-	"strconv"
 )
 
-const (
-	// maxPosition keeps every denominator 8k+j below 2^32, so that the
-	// products in powMod16 cannot overflow a uint64.
-	maxPosition = 1<<29 - 1
+// MaxPosition is the largest position PiHexDigits accepts. It keeps every
+// denominator 8k+j below 2^32, so that the products in powMod16 cannot
+// overflow a uint64.
+const MaxPosition = 1<<29 - 1
 
-	defaultPosition = 1000000
-	defaultDigits   = 8
-
-	// tailTerms is the number of terms summed past the requested position.
-	// Term m of the tail is smaller than 16^-m, so it stops contributing to
-	// a 64-bit fraction after 16 terms.
-	tailTerms = 16
-)
-
-func main() {
-	digits := flag.Int("digits", 0, "number of hex digits to print (default 8, or fewer if the position is too large to guarantee 8)")
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [-digits n] [position]\n\n", os.Args[0])
-		fmt.Fprintf(flag.CommandLine.Output(), "Prints the hex digits of pi that follow the given position after the\nhexadecimal point (default %d). Position 0 gives the first digits.\n\n", defaultPosition)
-		flag.PrintDefaults()
-	}
-	flag.Parse()
-
-	position := uint64(defaultPosition)
-	if flag.NArg() > 0 {
-		var err error
-		position, err = strconv.ParseUint(flag.Arg(0), 10, 64)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "invalid position %q: must be a non-negative integer\n", flag.Arg(0))
-			os.Exit(2)
-		}
-	}
-	if position > maxPosition {
-		fmt.Fprintf(os.Stderr, "position %d is too large: the maximum is %d\n", position, maxPosition)
-		os.Exit(2)
-	}
-
-	count := *digits
-	if count == 0 {
-		count = min(defaultDigits, MaxDigits(position))
-	}
-
-	hex, err := PiHexDigits(position, count)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-	fmt.Printf("Hex digits of pi starting at position %d: %s\n", position+1, hex)
-}
+// tailTerms is the number of terms summed past the requested position.
+// Term m of the tail is smaller than 16^-m, so it stops contributing to
+// a 64-bit fraction after 16 terms.
+const tailTerms = 16
 
 // PiHexDigits returns count hexadecimal digits of pi, beginning with the
 // digit at position+1 after the hexadecimal point. PiHexDigits(0, 8) is
 // "243F6A88".
+//
+// It returns an error if position exceeds MaxPosition, or if count is less
+// than 1 or greater than MaxDigits(position).
 func PiHexDigits(position uint64, count int) (string, error) {
-	if position > maxPosition {
-		return "", fmt.Errorf("position %d is too large: the maximum is %d", position, maxPosition)
+	if position > MaxPosition {
+		return "", fmt.Errorf("bbp: position %d is too large: the maximum is %d", position, MaxPosition)
 	}
 	if limit := MaxDigits(position); count < 1 || count > limit {
-		return "", fmt.Errorf("digit count must be between 1 and %d at position %d", limit, position)
+		return "", fmt.Errorf("bbp: digit count %d is out of range: must be between 1 and %d at position %d", count, limit, position)
 	}
 
 	// The BBP formula is
@@ -92,6 +52,9 @@ func PiHexDigits(position uint64, count int) (string, error) {
 // with weights 4, 2, 1 and 1, so the total error is below
 // 8*(position+tailTerms)*2^-64. One further digit is held back as a guard.
 func MaxDigits(position uint64) int {
+	if position > MaxPosition {
+		return 0
+	}
 	errorBits := bits.Len64(8 * (position + tailTerms))
 	return (64-errorBits)/4 - 1
 }
